@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#10172a">
+<title>دو مسیر | بازی تمرکز</title>
+<style>
+  :root { color-scheme: dark; --bg:#10172a; --panel:#18233d; --muted:#aab7d2; --cyan:#52d6ff; --pink:#ff78b7; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:#fff; font-family:Tahoma,Arial,sans-serif; touch-action:manipulation; }
+  body { display:flex; align-items:center; justify-content:center; }
+  #app { width:min(100vw,520px); height:100dvh; min-height:480px; display:flex; flex-direction:column; padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)); gap:8px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  h1 { font-size:19px; margin:0; }
+  .scorebox { background:var(--panel); border:1px solid #2a395b; border-radius:12px; padding:7px 11px; text-align:center; min-width:95px; }
+  .scorebox small { color:var(--muted); display:block; font-size:10px; }
+  .scorebox b { font-size:19px; font-variant-numeric:tabular-nums; }
+  #hint { text-align:center; color:var(--muted); font-size:12px; line-height:1.6; }
+  #game { flex:1; min-height:260px; width:100%; display:block; background:#0c1324; border:1px solid #2a395b; border-radius:18px; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .control { background:var(--panel); border:1px solid #2a395b; border-radius:14px; padding:8px; text-align:center; }
+  .control strong { display:block; font-size:12px; margin-bottom:7px; }
+  .buttons { display:flex; gap:7px; }
+  button { border:0; border-radius:11px; background:#293958; color:white; font: bold 17px Tahoma,Arial; min-height:43px; flex:1; touch-action:none; }
+  button:active { transform:scale(.97); background:#3c527b; }
+  .leftname { color:var(--pink); } .rightname { color:var(--cyan); }
+  #overlay { position:fixed; inset:0; background:#070c18dd; display:flex; align-items:center; justify-content:center; padding:20px; z-index:5; }
+  #overlay.hidden { display:none; }
+  .modal { width:min(100%,360px); background:#18233d; border:1px solid #3b4e75; border-radius:22px; padding:24px 20px; text-align:center; box-shadow:0 20px 70px #0009; }
+  .modal h2 { margin:0 0 10px; font-size:24px; }
+  .modal p { color:var(--muted); line-height:1.8; font-size:14px; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0; }
+  .stat { background:#101a30; border-radius:13px; padding:12px 6px; }
+  .stat small { display:block; color:var(--muted); font-size:11px; margin-bottom:5px; }
+  .stat b { font-size:23px; }
+  #start { width:100%; background:linear-gradient(90deg,#8a5cff,#398bff); min-height:49px; font-size:16px; }
+  .legend { font-size:11px; color:var(--muted); text-align:center; }
+  @media (max-height:600px) { #app { gap:5px; } h1 {font-size:16px} #hint {font-size:10px} button {min-height:36px} .control {padding:5px} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🚘 دو مسیر</h1>
+    <div class="scorebox"><small>امتیاز</small><b id="score">۰</b></div>
+    <div class="scorebox"><small>رکورد</small><b id="best">۰</b></div>
+  </header>
+  <div id="hint">هر ماشین مسیر خودش را دارد: مربع = تغییر لاین، دایره = برخورد و گرفتن امتیاز</div>
+  <canvas id="game" aria-label="زمین بازی دو ماشینه"></canvas>
+  <div class="controls">
+    <div class="control">
+      <strong class="leftname">ماشین چپ · دست چپ</strong>
+      <div class="buttons">
+        <button id="leftL" aria-label="ماشین چپ به چپ">◀</button>
+        <button id="leftR" aria-label="ماشین چپ به راست">▶</button>
+      </div>
+    </div>
+    <div class="control">
+      <strong class="rightname">ماشین راست · دست راست</strong>
+      <div class="buttons">
+        <button id="rightL" aria-label="ماشین راست به چپ">◀</button>
+        <button id="rightR" aria-label="ماشین راست به راست">▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="legend">روی موبایل از دکمه‌ها استفاده کن؛ روی کامپیوتر: A/D برای ماشین چپ و ←/→ برای ماشین راست</div>
+</div>
+<div id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">آماده‌ای؟</h2>
+    <p id="modalText">دو ماشین هم‌زمان حرکت می‌کنند. برای هر ماشین، مربع را دور بزن و دایره را جمع کن. رد کردن دایره هم باعث پایان بازی می‌شود.</p>
+    <div class="stats">
+      <div class="stat"><small>امتیاز این بازی</small><b id="finalScore">۰</b></div>
+      <div class="stat"><small>بیشترین امتیاز</small><b id="finalBest">۰</b></div>
+    </div>
+    <button id="start">شروع بازی</button>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score'), bestEl = document.getElementById('best');
+  const overlay = document.getElementById('overlay'), startBtn = document.getElementById('start');
+  const fa = n => Math.floor(n).toLocaleString('fa-IR');
+  let W=0,H=0,dpr=1, running=false, score=0, best=Number(localStorage.getItem('do-masir-best')||0);
+  let last=0, spawnTimer=0, speed=205, objects=[], audioCtx=null;
+  const cars = [
+    {lane:0, x:0, color:'#ff78b7', side:'left', y:0},
+    {lane:0, x:0, color:'#52d6ff', side:'right', y:0}
+  ];
+  const tracks = [0,1];
+  function resize(){
+    const r=canvas.getBoundingClientRect(); dpr=Math.min(devicePixelRatio||1,2);
+    W=r.width; H=r.height; canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    cars.forEach((c,i)=>{c.y=H-58; c.x=trackX(i,c.lane);});
+  }
+  function trackX(track,lane){
+    const trackW=W/2, center=track*trackW+trackW/2;
+    return center+(lane===0?-trackW*.19:trackW*.19);
+  }
+  function ding(){
+    try {
+      audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state==='suspended') audioCtx.resume();
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(880,audioCtx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1320,audioCtx.currentTime+.09);
+      g.gain.setValueAtTime(.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(.18,audioCtx.currentTime+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.22);
+      o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+.23);
+    } catch(e){}
+  }
+  function switchLane(i,dir){
+    if(!running)return;
+    cars[i].lane = dir<0 ? 0 : 1;
+    cars[i].x=trackX(i,cars[i].lane);
+  }
+  function bindButton(id,i,dir){
+    const b=document.getElementById(id);
+    b.addEventListener('pointerdown',e=>{e.preventDefault();switchLane(i,dir);});
+  }
+  bindButton('leftL',0,-1); bindButton('leftR',0,1);
+  bindButton('rightL',1,-1); bindButton('rightR',1,1);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='a'||e.key==='A') switchLane(0,-1);
+    if(e.key==='d'||e.key==='D') switchLane(0,1);
+    if(e.key==='ArrowLeft') {e.preventDefault();switchLane(1,-1);}
+    if(e.key==='ArrowRight') {e.preventDefault();switchLane(1,1);}
+    if((e.key===' '||e.key==='Enter')&&!running&&overlay.classList.contains('hidden')===false) startGame();
+  });
+  function spawn(){
+    // Each stream receives its own independent obstacle.
+    for(let i=0;i<2;i++){
+      const lane=Math.random()<.5?0:1;
+      const circle=Math.random()<.57;
+      const size=[12,16,20,24][Math.floor(Math.random()*4)];
+      const value={12:25,16:50,20:75,24:100}[size];
+      objects.push({track:i,lane,y:-30,size,type:circle?'circle':'square',value,passed:false});
+    }
+  }
+  function drawCar(x,y,color){
+    ctx.save(); ctx.translate(x,y);
+    ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.roundRect(-12,-20,24,39,7); ctx.fill();
+    ctx.shadowBlur=0; ctx.fillStyle='#17223a';
+    ctx.fillRect(-8,-12,16,10); ctx.fillRect(-8,5,16,8);
+    ctx.fillStyle='#eaf6ff'; ctx.fillRect(-10,-16,4,4); ctx.fillRect(6,-16,4,4);
+    ctx.restore();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // track backgrounds and lane separators
+    for(let i=0;i<2;i++){
+      const x=i*W/2;
+      ctx.fillStyle=i===0?'#171326':'#10202d'; ctx.fillRect(x,0,W/2,H);
+      ctx.strokeStyle='#ffffff22'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x+W/4,0); ctx.lineTo(x+W/4,H); ctx.stroke();
+      ctx.strokeStyle=i===0?'#ff78b755':'#52d6ff55';
+      ctx.beginPath(); ctx.moveTo(x+W/2,0); ctx.lineTo(x+W/2,H); ctx.stroke();
+      ctx.fillStyle='#ffffff12'; ctx.font='10px Tahoma'; ctx.textAlign='center';
+      ctx.fillText(i===0?'دست چپ':'دست راست',x+W/4,17);
+    }
+    objects.forEach(o=>{
+      const x=trackX(o.track,o.lane);
+      ctx.save(); ctx.translate(x,o.y);
+      if(o.type==='circle'){
+        ctx.fillStyle='#ffd45c'; ctx.shadowColor='#ffd45c'; ctx.shadowBlur=13;
+        ctx.beginPath(); ctx.arc(0,0,o.size,0,Math.PI*2); ctx.fill();
+        ctx.shadowBlur=0; ctx.fillStyle='#49350b'; ctx.font='bold 10px Tahoma'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(o.value,0,1);
+      } else {
+        ctx.fillStyle='#ff5368'; ctx.shadowColor='#ff5368'; ctx.shadowBlur=10;
+        ctx.fillRect(-o.size,-o.size,o.size*2,o.size*2);
+        ctx.shadowBlur=0;
+      }
+      ctx.restore();
+    });
+    cars.forEach(c=>drawCar(c.x,c.y,c.color));
+  }
+  function endGame(){
+    running=false;
+    best=Math.max(best,score); localStorage.setItem('do-masir-best',String(best));
+    bestEl.textContent=fa(best);
+    document.getElementById('finalScore').textContent=fa(score);
+    document.getElementById('finalBest').textContent=fa(best);
+    document.getElementById('modalTitle').textContent='بازی تموم شد!';
+    document.getElementById('modalText').textContent='یکی از قانون‌ها رعایت نشد. آماده‌ای دوباره امتحان کنی؟';
+    startBtn.textContent='شروع دوباره';
+    overlay.classList.remove('hidden');
+  }
+  function update(dt){
+    speed=Math.min(330,205+score*.12);
+    spawnTimer+=dt;
+    if(spawnTimer>1.12){spawn();spawnTimer=0;}
+    for(const o of objects){
+      o.y+=speed*dt;
+      if(o.passed)continue;
+      const car=cars[o.track], sameLane=car.lane===o.lane;
+      const near=Math.abs(o.y-car.y)<o.size+19;
+      if(near){
+        if(o.type==='square'&&sameLane){endGame();return;}
+        if(o.type==='circle'&&sameLane){
+          score+=o.value; scoreEl.textContent=fa(score); ding(); o.passed=true;
+        }
+      }
+      if(o.y>car.y+o.size+18&&!o.passed){
+        if(o.type==='circle'){endGame();return;}
+        if(o.type==='square')o.passed=true;
+      }
+    }
+    objects=objects.filter(o=>o.y<H+40);
+  }
+  function loop(t){
+    if(!running)return;
+    const dt=Math.min((t-last)/1000||0,.04); last=t;
+    update(dt); draw();
+    if(running)requestAnimationFrame(loop);
+  }
+  function startGame(){
+    score=0; scoreEl.textContent=fa(0); objects=[]; spawnTimer=0; speed=205;
+    cars.forEach((c,i)=>{c.lane=0;c.x=trackX(i,0);});
+    overlay.classList.add('hidden'); running=true; last=0; requestAnimationFrame(loop);
+  }
+  startBtn.addEventListener('click',startGame);
+  bestEl.textContent=fa(best);
+  document.getElementById('finalBest').textContent=fa(best);
+  resize(); draw(); window.addEventListener('resize',()=>{resize();draw();});
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
